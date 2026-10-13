@@ -7,7 +7,9 @@ authors = [
     { name = "ellecarey", email = "elle.carey@yahoo.co.uk" }
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "opencv-python>=5.0.0.93",
+]
 
 [project.scripts]
 humanoid = "humanoid:main"
