@@ -1,0 +1,64 @@
+run_name: demo
+videos:
+  v1: data/raw_videos/scene_v1.mp4
+  v2: data/raw_videos/scene_v2.mp4
+output_root: outputs
+
+frames:
+  target_fps: 4.0          # 30 fps video -> keep every 7th or 8th frame
+  max_width: 1280
+  blur_threshold: 80.0     # Laplacian variance; raise if too many frames survive
+  duplicate_threshold: 0.98
+
+sfm:
+  feature: superpoint_max
+  matcher: superpoint+lightglue
+  retrieval: netvlad
+  min_registration_ratio: 0.9
+
+depth:
+  model: depth-anything/Depth-Anything-V2-Metric-Indoor-Large
+  min_sfm_points: 30
+
+fusion:
+  voxel_size: 0.015        # 1.5 cm; drop toward 0.01 if small objects disappear
+  sdf_trunc: 0.04
+
+diff:
+  change_distance_m: 0.03
+
+visibility:
+  depth_margin_m: 0.05
+  min_confirming_views: 2
+
+cluster:
+  dbscan_eps_m: 0.05
+  dbscan_min_samples: 15
+  min_points: 40
+  min_extent_m: 0.03
+  max_extent_m: 1.5
+  min_height_above_floor_m: 0.05
+
+vlm:
+  provider: openai          # or gemini
+  model: gpt-4o
+  cache: true
+
+embed:
+  model: facebook/dinov2-base
+
+match:
+  max_cost: 0.45
+  weight_label: 0.4
+  weight_embed: 0.4
+  weight_size: 0.2
+
+describe:
+  use_llm: true
+
+viz:
+  rerun: true
+
+evaluation:
+  ground_truth: data/ground_truth/changes.json
+  match_distance_m: 0.3
