@@ -1,7 +1,7 @@
 run_name: demo
 videos:
-  v1: data/raw_videos/scene_v1.mp4
-  v2: data/raw_videos/scene_v2.mp4
+  v1: data/raw_videos/scene_v1.MOV
+  v2: data/raw_videos/scene_v2.MOV
 output_root: outputs
 
 frames:
