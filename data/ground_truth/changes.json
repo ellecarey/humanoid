@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "type": "removed",
+    "label": "gold elephant",
+    "centroids": { "v1": null, "v2": null }
+  },
+  {
+    "id": 2,
+    "type": "added",
+    "label": "rat",
+    "centroids": { "v1": null, "v2": null }
+  },
+  {
+    "id": 3,
+    "type": "moved",
+    "label": "bin",
+    "centroids": { "v1": null, "v2": null }
+  }
+]
