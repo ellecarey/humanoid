@@ -14,15 +14,36 @@ Robots operating in human environments must understand how their surroundings ev
 
 ```text
 humanoid/
+├── configs/
+│   └── default.yaml
 ├── data/
-│   └── raw_videos/
-│       ├── scene_before.mp4   # Initial scene capture
-│       └── scene_after.mp4    # Modified scene capture
-├── src/
-│   └── humanoid/
-│       └── __init__.py
-├── .gitignore
-├── .python-version
+│   ├── ground_truth/changes.json
+│   └── raw_videos/                 # gitignored: scene_v1.MOV, scene_v2.MOV
+├── src/humanoid/
+│   ├── config.py
+│   ├── pipeline.py
+│   ├── types.py
+│   ├── preprocessing/
+│   ├── reconstruction/             # joint SfM and the registration fallback
+│   └── utils/
+├── tests/
 ├── pyproject.toml
 ├── uv.lock
 └── README.md
+```
+
+## 🎥 Joint SfM
+
+`run_joint_sfm` in `src/humanoid/reconstruction/sfm.py` reconstructs both videos in one model: SuperPoint and LightGlue matches, one camera per video, and a point-cloud registration fallback when either video registers below 90%. Camera poses are stored world-to-camera.
+
+That stage imports `hloc` and `pycolmap`, so install the GPU extra before running it:
+
+```bash
+uv sync --extra gpu
+```
+
+The alignment tests do not need the GPU extra:
+
+```bash
+uv run pytest tests/test_sfm_alignment.py
+```

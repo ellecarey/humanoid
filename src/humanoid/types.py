@@ -20,9 +20,10 @@ class CameraPose:
     
 @dataclass
 class SceneRecon:
-    poses: dict[str, CameraPose]
-    points_xyz: np.ndarray  # (N, 3) sparse points in the shared world frame
-    point_image_ids: np.ndarray  # (N,) image index for each point
+    poses: dict[str, CameraPose]  # key: "v1/frame_000006.jpg"
+    points_xyz: np.ndarray  # (P, 3) unique sparse points
+    point_image_ids: np.ndarray  # (P,) index into sorted(poses), first observing image
+    observations: dict[str, np.ndarray]  # image name -> (M, 3) [point_index, x, y]
 
 @dataclass
 class ChangeRegion:
