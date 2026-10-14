@@ -35,12 +35,7 @@ def _recon(depth_m: float) -> tuple[SceneRecon, dict]:
     }
     depth = np.zeros((8, 8), dtype=np.float32)
     depth[4, 4] = depth_m
-    recon = SceneRecon(
-        poses=poses,
-        points_xyz=np.zeros((0, 3)),
-        point_image_ids=np.zeros(0, dtype=int),
-        observations={},
-    )
+    recon = SceneRecon(poses=poses, depths={}, confidence={})
     return recon, {"v2": {name: depth.copy() for name in names}}
 
 

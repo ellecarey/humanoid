@@ -24,9 +24,8 @@ def test_select_views_keeps_the_unoccluded_frame(tmp_path):
     names = ("v1/clear.jpg", "v1/blocked.jpg")
     recon = SceneRecon(
         poses={name: pose(name) for name in names},
-        points_xyz=np.zeros((0, 3)),
-        point_image_ids=np.zeros(0, dtype=int),
-        observations={},
+        depths={},
+        confidence={},
     )
     depths = {
         "v1": {

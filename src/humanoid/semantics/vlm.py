@@ -1,4 +1,3 @@
-import base64
 import hashlib
 import json
 from pathlib import Path
@@ -36,15 +35,10 @@ def label_with_vlm(
 
 
 def _ask(crop: np.ndarray, cfg: VlmConfig) -> tuple[str, dict[str, str]]:
-    if cfg.provider == "openai":
-        return _openai(crop, cfg)
-    if cfg.provider == "gemini":
-        return _gemini(crop, cfg)
-    raise ValueError(f"Unknown VLM provider {cfg.provider}")
+    if cfg.provider != "gemini":
+        raise ValueError(f"Unknown VLM provider {cfg.provider}")
+    return _gemini(crop, cfg)
 
-
-def _openai(crop: np.ndarray, cfg: VlmConfig) -> tuple[str, dict[str, str]]:
-    from openai import OpenAI
 
     encoded = _jpeg_b64(crop)
     response = OpenAI().chat.completions.create(
@@ -89,9 +83,6 @@ def _jpeg(crop: np.ndarray) -> bytes:
         raise RuntimeError("Could not encode crop as JPEG")
     return encoded.tobytes()
 
-
-def _jpeg_b64(crop: np.ndarray) -> str:
-    return base64.b64encode(_jpeg(crop)).decode("ascii")
 
 
 def _digest(crop: np.ndarray, cfg: VlmConfig) -> str:

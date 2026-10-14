@@ -1,13 +1,8 @@
 import numpy as np
 import open3d as o3d
 
-from humanoid.config import DescribeConfig
 from humanoid.semantics import describe_changes
 from humanoid.types import DetectedChange
-
-
-def _cfg() -> DescribeConfig:
-    return DescribeConfig(use_llm=False, provider="openai", model="gpt-4o")
 
 
 def _cloud(*points: list[float]) -> o3d.geometry.PointCloud:
@@ -31,7 +26,7 @@ def test_template_describes_a_move():
         description="",
     )
 
-    report = describe_changes([change], {"v1": _cloud([0.0, 0.0, 0.0])}, _cfg())
+    report = describe_changes([change], {"v1": _cloud([0.0, 0.0, 0.0])})
 
     entry = report["changes"][0]
     assert entry["type"] == "moved"
@@ -73,7 +68,7 @@ def test_template_places_removed_and_added_objects():
     )
     clouds = {"v1": _cloud([0.0, 0.0, 0.0], [0.0, 0.0, 0.0])}
 
-    report = describe_changes([removed, added], clouds, _cfg())
+    report = describe_changes([removed, added], clouds)
 
     assert report["changes"][0]["description"] == (
         "The gold elephant was removed on the +X side of the room."

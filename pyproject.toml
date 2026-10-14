@@ -16,19 +16,16 @@ dependencies = [
     "pydantic>=2",
     "pyyaml",
     "typer",
-    "rerun-sdk",
     "tqdm",
-    "torch>=2.14.1",
-    "transformers>=5.19.0",
+    "plotly",
 ]
+
 [project.optional-dependencies]
 gpu = [
     "torch",
-    "pycolmap",
-    "transformers",
-    "hloc @ git+https://github.com/cvg/Hierarchical-Localization.git",
+    "mapanything @ git+https://github.com/facebookresearch/map-anything.git",
 ]
-vlm = ["openai", "google-genai"]
+vlm = ["google-genai"]
 [project.scripts]
 humanoid = "humanoid.cli:app"
 

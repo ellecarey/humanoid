@@ -1,24 +1,16 @@
-import json
+import numpy as np
 from dataclasses import replace
 
-import numpy as np
-
-from humanoid.config import DescribeConfig
 from humanoid.types import DetectedChange
 
 NEAR_CENTRE_M = 0.3
 
 
-def describe_changes(changes: list[DetectedChange], clouds: dict, cfg: DescribeConfig) -> dict:
+def describe_changes(changes: list[DetectedChange], clouds: dict) -> dict:
     centroid = _scene_centroid(clouds)
-    described = []
-    for change in changes:
-        text = _template(change, centroid)
-        if cfg.use_llm:
-            rewritten = _llm(change, centroid, cfg)
-            if rewritten:
-                text = rewritten
-        described.append(replace(change, description=text))
+    described = [
+        replace(change, description=_template(change, centroid)) for change in changes
+    ]
     return {
         "changes": [_record(change) for change in described],
         "markdown": _markdown(described),
@@ -27,7 +19,9 @@ def describe_changes(changes: list[DetectedChange], clouds: dict, cfg: DescribeC
 
 def _template(change: DetectedChange, centroid: np.ndarray | None) -> str:
     if change.change_type == "removed":
-        return f"The {change.label} was removed{_place(change.from_centroid, centroid)}."
+        return (
+            f"The {change.label} was removed{_place(change.from_centroid, centroid)}."
+        )
     if change.change_type == "added":
         return f"{_article(change.label)} {change.label} was added{_place(change.to_centroid, centroid)}."
     return (
@@ -74,44 +68,6 @@ def _scene_centroid(clouds: dict) -> np.ndarray | None:
     return np.mean(np.vstack(chunks), axis=0)
 
 
-def _llm(change: DetectedChange, centroid: np.ndarray | None, cfg: DescribeConfig) -> str | None:
-    payload = _record(change)
-    if centroid is not None:
-        payload["scene_centroid"] = _xyz(centroid)
-    prompt = (
-        "Write one sentence describing this indoor scene change. "
-        "Use only the JSON. Do not invent furniture or object names that are not in it.\n"
-        + json.dumps(payload)
-    )
-    try:
-        if cfg.provider == "openai":
-            text = _openai(prompt, cfg)
-        elif cfg.provider == "gemini":
-            text = _gemini(prompt, cfg)
-        else:
-            return None
-    except Exception:
-        return None
-    return text or None
-
-
-def _openai(prompt: str, cfg: DescribeConfig) -> str:
-    from openai import OpenAI
-
-    response = OpenAI().chat.completions.create(
-        model=cfg.model,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return (response.choices[0].message.content or "").strip()
-
-
-def _gemini(prompt: str, cfg: DescribeConfig) -> str:
-    from google import genai
-
-    response = genai.Client().models.generate_content(model=cfg.model, contents=prompt)
-    return (response.text or "").strip()
-
-
 def _record(change: DetectedChange) -> dict:
     record = {
         "id": change.id,
@@ -145,5 +101,7 @@ def _markdown(changes: list[DetectedChange]) -> str:
         lines.append("No changes detected.")
         return "\n".join(lines) + "\n"
     lines.extend(f"- {change.description}" for change in changes)
-    lines.extend(["", "## Summary", "", " ".join(change.description for change in changes)])
+    lines.extend(
+        ["", "## Summary", "", " ".join(change.description for change in changes)]
+    )
     return "\n".join(lines) + "\n"

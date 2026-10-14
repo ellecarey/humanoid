@@ -21,9 +21,8 @@ class CameraPose:
 @dataclass
 class SceneRecon:
     poses: dict[str, CameraPose]  # key: "v1/frame_000006.jpg"
-    points_xyz: np.ndarray  # (P, 3) unique sparse points
-    point_image_ids: np.ndarray  # (P,) index into sorted(poses), first observing image
-    observations: dict[str, np.ndarray]  # image name -> (M, 3) [point_index, x, y]
+    depths: dict[str, dict[str, np.ndarray]]  # scene_id -> image name -> (H, W) metres
+    confidence: dict[str, dict[str, np.ndarray]]  # scene_id -> image name -> (H, W)
 
 @dataclass
 class ChangeRegion:
