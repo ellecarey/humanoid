@@ -48,3 +48,16 @@ class LabeledDiff:
     source_scene: np.ndarray
     nn_distance: np.ndarray
     label: np.ndarray         # (N,) "changed", "unchanged", or "unknown"
+    
+@dataclass
+class RegionView:
+    region_id: int
+    image_name: str
+    crop: np.ndarray  # RGB uint8
+    score: float
+    
+@dataclass
+class RegionLabel:
+    region_id: int
+    label: str
+    attributes: dict[str, str]
