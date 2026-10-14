@@ -28,11 +28,9 @@ MANIFEST
 
 # Pipeline data and outputs
 data/raw_videos/
-outputs/02_sfm/
-outputs/03_depth/
-outputs/04_fusion/
-outputs/05_changes/
-outputs/06_semantics/
+outputs/**
+!outputs/**/
+!outputs/**/01_frames/**
 
 # PyInstaller
 #   Usually these files are written by a python script from a template
