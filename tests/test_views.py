@@ -12,11 +12,13 @@ def test_select_views_keeps_the_unoccluded_frame(tmp_path):
     cv2.imwrite(str(clear), image)
     cv2.imwrite(str(blocked), image)
 
-    intrinsics = np.array([
-        [4.0, 0.0, 4.0],
-        [0.0, 4.0, 4.0],
-        [0.0, 0.0, 1.0],
-    ])
+    intrinsics = np.array(
+        [
+            [4.0, 0.0, 4.0],
+            [0.0, 4.0, 4.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
 
     def pose(name: str) -> CameraPose:
         return CameraPose("v1", name, np.eye(3), np.zeros(3), intrinsics)
@@ -33,13 +35,15 @@ def test_select_views_keeps_the_unoccluded_frame(tmp_path):
             "v1/blocked.jpg": np.full((8, 8), 0.5, np.float32),
         }
     }
-    points = np.array([
-        [0.0, 0.0, 2.0],
-        [0.25, 0.0, 2.0],
-        [-0.25, 0.0, 2.0],
-        [0.0, 0.25, 2.0],
-        [0.0, -0.25, 2.0],
-    ])
+    points = np.array(
+        [
+            [0.0, 0.0, 2.0],
+            [0.25, 0.0, 2.0],
+            [-0.25, 0.0, 2.0],
+            [0.0, 0.25, 2.0],
+            [0.0, -0.25, 2.0],
+        ]
+    )
     region = ChangeRegion(
         id=1,
         change_type="removed",

@@ -39,4 +39,3 @@ class Pipeline:
             json.dumps(report["changes"], indent=2) + "\n"
         )
         self.out("report/report.md").write_text(report["markdown"])
-        

@@ -5,6 +5,7 @@ import cv2
 from humanoid.config import FramesConfig
 from humanoid.types import Frame
 
+
 def extract_frames(
     video: Path,
     cfg: FramesConfig,

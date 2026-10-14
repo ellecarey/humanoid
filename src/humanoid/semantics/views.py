@@ -68,7 +68,9 @@ def _score_view(region, frame, image_name, pose, depth_map) -> RegionView | None
     return RegionView(region.id, image_name, rgb, score)
 
 
-def _depth_agrees(pixels: np.ndarray, z: np.ndarray, depth_map: np.ndarray) -> np.ndarray:
+def _depth_agrees(
+    pixels: np.ndarray, z: np.ndarray, depth_map: np.ndarray
+) -> np.ndarray:
     height, width = depth_map.shape
     u = np.rint(pixels[:, 0]).astype(int)
     v = np.rint(pixels[:, 1]).astype(int)

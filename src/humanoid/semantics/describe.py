@@ -1,5 +1,6 @@
-import numpy as np
 from dataclasses import replace
+
+import numpy as np
 
 from humanoid.types import DetectedChange
 

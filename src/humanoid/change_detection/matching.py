@@ -4,7 +4,9 @@ from humanoid.types import ChangeRegion, DetectedChange
 
 
 def build_changes(regions: list[ChangeRegion]) -> list[DetectedChange]:
-    changes = [_single(region) for region in sorted(regions, key=lambda region: region.id)]
+    changes = [
+        _single(region) for region in sorted(regions, key=lambda region: region.id)
+    ]
     for index, change in enumerate(changes, start=1):
         change.id = index
     return changes
