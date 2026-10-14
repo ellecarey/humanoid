@@ -1119,7 +1119,9 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "torch" },
     { name = "tqdm" },
+    { name = "transformers" },
     { name = "typer" },
 ]
 
@@ -1154,8 +1156,10 @@ requires-dist = [
     { name = "rerun-sdk" },
     { name = "scikit-learn" },
     { name = "scipy" },
+    { name = "torch", specifier = ">=2.14.1" },
     { name = "torch", marker = "extra == 'gpu'" },
     { name = "tqdm" },
+    { name = "transformers", specifier = ">=5.19.0" },
     { name = "transformers", marker = "extra == 'gpu'" },
     { name = "typer" },
 ]

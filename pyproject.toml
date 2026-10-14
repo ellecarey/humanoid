@@ -18,6 +18,8 @@ dependencies = [
     "typer",
     "rerun-sdk",
     "tqdm",
+    "torch>=2.14.1",
+    "transformers>=5.19.0",
 ]
 [project.optional-dependencies]
 gpu = [

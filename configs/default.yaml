@@ -17,7 +17,7 @@ sfm:
   min_registration_ratio: 0.9
 
 depth:
-  model: depth-anything/Depth-Anything-V2-Metric-Indoor-Large
+  model: depth-anything/Depth-Anything-V2-Metric-Indoor-Large-hf
   min_sfm_points: 30
 
 fusion:

@@ -4,13 +4,13 @@ A 3D spatial change detection pipeline that compares two video recordings of an 
 
 ---
 
-## 🏗️ Project Overview
+## Project Overview
 
 Robots operating in human environments must understand how their surroundings evolve over time. This project processes two hand-held phone recordings taken from different viewpoints, aligns them in a shared 3D coordinate frame, and detects structural and semantic changes across the scene while accounting for viewpoint shifts, occlusions, and variable lighting.
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```text
 humanoid/
@@ -32,7 +32,7 @@ humanoid/
 └── README.md
 ```
 
-## 🎥 Joint SfM
+## Joint SfM
 
 `run_joint_sfm` in `src/humanoid/reconstruction/sfm.py` reconstructs both videos in one model: SuperPoint and LightGlue matches, one camera per video, and a point-cloud registration fallback when either video registers below 90%. Camera poses are stored world-to-camera.
 
@@ -47,3 +47,10 @@ The alignment tests do not need the GPU extra:
 ```bash
 uv run pytest tests/test_sfm_alignment.py
 ```
+
+## Depth and TSDF fusion
+`estimate_aligned_depth` in `src/humanoid/reconstruction/depth.py` runs Depth Anything V2 Metric Indoor on each registered frame and fits `z_sfm ≈ scale * z_pred + shift` with a Huber loss against the sparse SfM depths. Frames with fewer than 30 correspondences, or a non-positive scale, are skipped. Aligned maps are saved as float32 `.npy` files.
+`fuse_tsdf` builds one coloured cloud per video with an Open3D voxel block grid (`voxel_size` 1.5 cm, truncation 4 cm). v1 and v2 stay in the shared SfM frame, so the unchanged room overlaps. Open3D 0.20's `ScalableTSDFVolume` places those metric depths in the wrong blocks, so fusion uses `VoxelBlockGrid` instead.
+```bash
+uv run pytest tests/test_depth_fusion.py tests/test_sfm_alignment.py tests/test_geometry.py
+
