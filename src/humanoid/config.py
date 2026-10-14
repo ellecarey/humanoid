@@ -58,3 +58,9 @@ class ReconConfig(BaseModel):
     voxel_size: float
     min_confidence: float
     scale_m_per_unit: float
+
+
+class VisibilityConfig(BaseModel):
+    depth_margin_m: float
+    min_confirming_views: int
+    min_confidence: float = 0.0

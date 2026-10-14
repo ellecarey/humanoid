@@ -17,11 +17,33 @@ def cluster_changes(diff: LabeledDiff, cfg: ClusterConfig) -> list[ChangeRegion]
         points = diff.points[changed & (diff.source_scene == scene_id)]
         if len(points) == 0:
             continue
-        labels = DBSCAN(eps=cfg.dbscan_eps_m, min_samples=cfg.dbscan_min_samples).fit_predict(points)
+        labels = DBSCAN(
+            eps=cfg.dbscan_eps_m, min_samples=cfg.dbscan_min_samples
+        ).fit_predict(points)
         for label in sorted(set(labels) - {-1}):
             cluster = points[labels == label]
             region = _region(len(regions), scene_id, change_type, cluster)
             if region is None or not _keep(region, floor, cfg):
+                continue
+            regions.append(region)
+    return regions
+
+
+def unknown_regions(diff: LabeledDiff, cfg: ClusterConfig) -> list[ChangeRegion]:
+    unknown = diff.label == "unknown"
+    regions: list[ChangeRegion] = []
+
+    for scene_id in ("v1", "v2"):
+        points = diff.points[unknown & (diff.source_scene == scene_id)]
+        if len(points) == 0:
+            continue
+        labels = DBSCAN(
+            eps=cfg.dbscan_eps_m, min_samples=cfg.dbscan_min_samples
+        ).fit_predict(points)
+        for label in sorted(set(labels) - {-1}):
+            cluster = points[labels == label]
+            region = _region(len(regions), scene_id, "unknown", cluster)
+            if region is None or not _keep(region, None, cfg):
                 continue
             regions.append(region)
     return regions
@@ -40,7 +62,9 @@ def _floor_plane(points: np.ndarray) -> np.ndarray | None:
     return np.asarray(plane, dtype=float)
 
 
-def _region(region_id: int, scene_id: str, change_type: str, points: np.ndarray) -> ChangeRegion | None:
+def _region(
+    region_id: int, scene_id: str, change_type: str, points: np.ndarray
+) -> ChangeRegion | None:
     if len(points) < 4:
         return None
     cloud = o3d.geometry.PointCloud()
@@ -59,7 +83,11 @@ def _region(region_id: int, scene_id: str, change_type: str, points: np.ndarray)
 
 def _keep(region: ChangeRegion, floor: np.ndarray | None, cfg: ClusterConfig) -> bool:
     longest = float(np.max(region.extent))
-    if len(region.points) < cfg.min_points or longest < cfg.min_extent_m or longest > cfg.max_extent_m:
+    if (
+        len(region.points) < cfg.min_points
+        or longest < cfg.min_extent_m
+        or longest > cfg.max_extent_m
+    ):
         return False
     if floor is None:
         return True

@@ -29,6 +29,7 @@ diff:
 visibility:
   depth_margin_m: 0.05
   min_confirming_views: 2
+  min_confidence: 1.5
 
 cluster:
   dbscan_eps_m: 0.05

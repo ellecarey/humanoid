@@ -20,7 +20,10 @@ def apply_visibility(
 
         pixels, z, keep = project(diff.points, pose.R, pose.t, pose.K)
         point_index = np.flatnonzero(keep)
-        free = _sees_through(pixels, z, depth_map, cfg.depth_margin_m)
+        confidence_map = recon.confidence.get(pose.scene_id, {}).get(image_name)
+        free = _sees_through(
+            pixels, z, depth_map, cfg.depth_margin_m, confidence_map, cfg.min_confidence
+        )
 
         for local_index, index in enumerate(point_index):
             if not free[local_index] or not diff.candidate[index]:
@@ -39,11 +42,18 @@ def apply_visibility(
     )
 
 
-def _sees_through(pixels, z, depth_map, margin: float) -> np.ndarray:
+def _sees_through(
+    pixels, z, depth_map, margin: float, confidence_map, min_confidence: float
+) -> np.ndarray:
     height, width = depth_map.shape
     u = np.rint(pixels[:, 0]).astype(int)
     v = np.rint(pixels[:, 1]).astype(int)
     inside = (u >= 0) & (u < width) & (v >= 0) & (v < height)
     z_map = np.full(len(pixels), np.nan)
     z_map[inside] = depth_map[v[inside], u[inside]]
-    return np.isfinite(z_map) & (z_map > z + margin)
+    sees = np.isfinite(z_map) & (z_map > z + margin)
+    if confidence_map is None:
+        return sees
+    conf = np.zeros(len(pixels), dtype=float)
+    conf[inside] = confidence_map[v[inside], u[inside]]
+    return sees & (conf >= min_confidence)

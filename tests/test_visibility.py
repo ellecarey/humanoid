@@ -18,11 +18,13 @@ def _pose(scene_id: str, name: str, translation: list[float]) -> CameraPose:
         image_name=name,
         R=np.eye(3),
         t=np.asarray(translation, dtype=float),
-        K=np.array([
-            [4.0, 0.0, 4.0],
-            [0.0, 4.0, 4.0],
-            [0.0, 0.0, 1.0],
-        ]),
+        K=np.array(
+            [
+                [4.0, 0.0, 4.0],
+                [0.0, 4.0, 4.0],
+                [0.0, 0.0, 1.0],
+            ]
+        ),
     )
 
 
@@ -58,8 +60,7 @@ def test_distance_above_threshold_is_a_candidate():
     )
 
     by_source = {
-        scene: diff.candidate[diff.source_scene == scene]
-        for scene in ("v1", "v2")
+        scene: diff.candidate[diff.source_scene == scene] for scene in ("v1", "v2")
     }
     assert by_source["v1"].tolist() == [False, True]
     assert by_source["v2"].tolist() == [False, True]
@@ -74,6 +75,23 @@ def test_free_space_in_two_views_is_changed():
         VisibilityConfig(depth_margin_m=0.05, min_confirming_views=2),
     )
     assert labeled.label.tolist() == ["changed"]
+
+
+def test_low_confidence_depth_stays_unknown():
+    recon, depths = _recon(depth_m=3.0)
+    confidence = np.zeros((8, 8), dtype=np.float32)
+    recon.confidence = {
+        "v2": {name: confidence.copy() for name in ("v2/a.jpg", "v2/b.jpg")}
+    }
+    labeled = apply_visibility(
+        _candidate([0.0, 0.0, 2.0]),
+        recon,
+        depths,
+        VisibilityConfig(
+            depth_margin_m=0.05, min_confirming_views=2, min_confidence=1.5
+        ),
+    )
+    assert labeled.label.tolist() == ["unknown"]
 
 
 def test_occluder_in_front_stays_unknown():
