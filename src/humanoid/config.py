@@ -65,6 +65,8 @@ class MatchConfig(BaseModel):
 
 class DescribeConfig(BaseModel):
     use_llm: bool
+    provider: str
+    model: str
 
 
 class VizConfig(BaseModel):

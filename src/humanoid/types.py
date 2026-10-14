@@ -61,3 +61,17 @@ class RegionLabel:
     region_id: int
     label: str
     attributes: dict[str, str]
+    
+@dataclass
+class DetectedChange:
+    id: int
+    change_type: str  # "removed", "added", or "moved"
+    label: str
+    attributes: dict[str, str]
+    confidence: float
+    region_ids: tuple[int, ...]
+    from_centroid: np.ndarray | None
+    to_centroid: np.ndarray | None
+    extent: np.ndarray
+    displacement_m: float | None
+    description: str
