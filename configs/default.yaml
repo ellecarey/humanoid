@@ -55,6 +55,8 @@ match:
 
 describe:
   use_llm: true
+  provider: openai          # or gemini
+  model: gpt-4o
 
 viz:
   rerun: true

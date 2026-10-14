@@ -54,3 +54,8 @@ uv run pytest tests/test_sfm_alignment.py
 ```bash
 uv run pytest tests/test_depth_fusion.py tests/test_sfm_alignment.py tests/test_geometry.py
 
+## Moved objects and descriptions
+`match_moved` pairs removed and added clusters with Hungarian matching. The cost mixes label agreement, crop-embedding similarity, and bounding-box size. Pairs above `match.max_cost` stay removed or added.
+`describe_changes` writes one sentence per change. With `describe.use_llm: false`, or when the model call fails, the sentence comes from a template. Directions use the shared SfM axes (+X, +Y, +Z).
+```bash
+uv run pytest tests/test_matching.py tests/test_describe.py
