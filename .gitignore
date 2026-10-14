@@ -28,9 +28,7 @@ MANIFEST
 
 # Pipeline data and outputs
 data/raw_videos/
-outputs/**
-!outputs/**/
-!outputs/**/01_frames/**
+outputs/
 
 # PyInstaller
 #   Usually these files are written by a python script from a template
