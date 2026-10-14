@@ -53,7 +53,7 @@ uv run pytest tests/test_sfm_alignment.py
 `fuse_tsdf` builds one coloured cloud per video with an Open3D voxel block grid (`voxel_size` 1.5 cm, truncation 4 cm). v1 and v2 stay in the shared SfM frame, so the unchanged room overlaps. Open3D 0.20's `ScalableTSDFVolume` places those metric depths in the wrong blocks, so fusion uses `VoxelBlockGrid` instead.
 ```bash
 uv run pytest tests/test_depth_fusion.py tests/test_sfm_alignment.py tests/test_geometry.py
-'''
+```
 
 ## Moved objects and descriptions
 `match_moved` pairs removed and added clusters with Hungarian matching. The cost mixes label agreement, crop-embedding similarity, and bounding-box size. Pairs above `match.max_cost` stay removed or added.
