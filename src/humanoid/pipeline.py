@@ -1,4 +1,3 @@
-import json
 import pickle
 from collections.abc import Callable
 from pathlib import Path
@@ -34,8 +33,7 @@ class Pipeline:
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
-    def write_report(self, report: dict) -> None:
-        self.out("report/changes.json").write_text(
-            json.dumps(report["changes"], indent=2) + "\n"
-        )
-        self.out("report/report.md").write_text(report["markdown"])
+    def write_report(self, changes, points, views=None) -> None:
+        from humanoid.visualisation.report import write_report
+
+        write_report(self.root / "report", changes, points, views=views)
