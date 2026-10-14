@@ -17,7 +17,7 @@ def project(points: np.ndarray, R: np.ndarray, t: np.ndarray, K: np.ndarray):
     u, v = pixels[:, 0], pixels[:, 1]
     keep = (z > 0) & (u >= 0) & (u < width) & (v >= 0) & (v < height)
     keep &= np.isfinite(pixels).all(axis=1)
-    return pixels[keep], z[keep]
+    return pixels[keep], z[keep], keep
 
 
 def backproject(u, v, depth, K: np.ndarray, R: np.ndarray, t: np.ndarray) -> np.ndarray:

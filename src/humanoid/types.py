@@ -34,3 +34,17 @@ class ChangeRegion:
     centroid: np.ndarray  # (3,)
     extent: np.ndarray  # (3,) oriented bbox size in metres
     obb_rotation: np.ndarray  # 3x3
+    
+@dataclass
+class GeometricDiff:
+    points: np.ndarray        # (N, 3) world coordinates from both clouds
+    source_scene: np.ndarray  # (N,) "v1" or "v2"
+    nn_distance: np.ndarray   # (N,) metres to the nearest point in the other cloud
+    candidate: np.ndarray     # (N,) True when nn_distance exceeds the threshold
+
+@dataclass
+class LabeledDiff:
+    points: np.ndarray
+    source_scene: np.ndarray
+    nn_distance: np.ndarray
+    label: np.ndarray         # (N,) "changed", "unchanged", or "unknown"
