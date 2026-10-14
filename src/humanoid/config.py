@@ -12,6 +12,14 @@ class FramesConfig(BaseModel):
     duplicate_threshold: float
 
 
+class ReconConfig(BaseModel):
+    model: str
+    max_frames: int
+    voxel_size: float
+    min_confidence: float
+    scale_m_per_unit: float
+
+
 class DiffConfig(BaseModel):
     change_distance_m: float
 
@@ -19,6 +27,7 @@ class DiffConfig(BaseModel):
 class VisibilityConfig(BaseModel):
     depth_margin_m: float
     min_confirming_views: int
+    min_confidence: float = 0.0
 
 
 class ClusterConfig(BaseModel):
@@ -41,6 +50,7 @@ class Config(BaseModel):
     videos: dict[str, Path]
     output_root: Path
     frames: FramesConfig
+    recon: ReconConfig
     diff: DiffConfig
     visibility: VisibilityConfig
     cluster: ClusterConfig
@@ -50,17 +60,3 @@ class Config(BaseModel):
 def load_config(path: Path) -> Config:
     data = yaml.safe_load(path.read_text())
     return Config.model_validate(data)
-
-
-class ReconConfig(BaseModel):
-    model: str
-    max_frames: int
-    voxel_size: float
-    min_confidence: float
-    scale_m_per_unit: float
-
-
-class VisibilityConfig(BaseModel):
-    depth_margin_m: float
-    min_confirming_views: int
-    min_confidence: float = 0.0
