@@ -55,6 +55,7 @@ def _mapanything(ordered: list[tuple[str, Frame]], cfg: ReconConfig):
     predictions = model.infer(
         load_images(
             [str(frame.path) for _, frame in ordered],
+            resize_mode="longest_side",
             size=252,
         )
     )
