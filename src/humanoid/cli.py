@@ -58,6 +58,11 @@ def _cached(pipe: Pipeline, name: str):
         return pickle.load(handle)
 
 
+@app.callback()
+def main() -> None:
+    """Detect changes between two phone videos."""
+
+
 @app.command()
 def run(
     config: Path = Path("configs/default.yaml"),

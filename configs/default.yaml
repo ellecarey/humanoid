@@ -6,14 +6,14 @@ output_root: outputs
 
 frames:
   target_fps: 4.0          # 30 fps video -> keep every 7th or 8th frame
-  max_frames: 35
+  max_frames: 12
   max_width: 1280
   blur_threshold: 80.0     # Laplacian variance; raise if too many frames survive
   duplicate_threshold: 0.98
 
 recon:
   model: facebook/map-anything
-  max_frames: 35
+  max_frames: 12
   voxel_size: 0.015
   min_confidence: 1.5
   scale_m_per_unit: 1.0   # VGGT fallback only; MapAnything is already metric
@@ -38,8 +38,3 @@ cluster:
   min_extent_m: 0.03
   max_extent_m: 1.5
   min_height_above_floor_m: 0.05
-
-vlm:
-  provider: openai          # or gemini
-  model: gpt-4o
-  cache: true
