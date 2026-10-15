@@ -27,8 +27,9 @@ def compute_geometric_diff(
     )
 
 
-def _xyz(cloud: o3d.geometry.PointCloud) -> np.ndarray:
-    points = np.asarray(cloud.points, dtype=float)
+def _xyz(cloud) -> np.ndarray:
+    points = cloud if isinstance(cloud, np.ndarray) else np.asarray(cloud.points)
+    points = np.asarray(points, dtype=float)
     if points.size == 0:
         return np.zeros((0, 3))
     return points.reshape(-1, 3)

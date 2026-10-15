@@ -23,9 +23,7 @@ def reconstruct(
     return recon, clouds
 
 
-def _cloud(
-    recon: SceneRecon, scene_id: str, cfg: ReconConfig
-) -> o3d.geometry.PointCloud:
+def _cloud(recon: SceneRecon, scene_id: str, cfg: ReconConfig) -> np.ndarray:
     chunks = []
     for image_name, pose in recon.poses.items():
         if pose.scene_id != scene_id:
@@ -39,11 +37,12 @@ def _cloud(
         chunks.append(
             backproject(cols, rows, depth[rows, cols], pose.K, pose.R, pose.t)
         )
+    if not chunks:
+        return np.zeros((0, 3))
     cloud = o3d.geometry.PointCloud()
-    if chunks:
-        cloud.points = o3d.utility.Vector3dVector(np.vstack(chunks))
-        cloud = cloud.voxel_down_sample(cfg.voxel_size)
-    return cloud
+    cloud.points = o3d.utility.Vector3dVector(np.vstack(chunks))
+    cloud = cloud.voxel_down_sample(cfg.voxel_size)
+    return np.asarray(cloud.points)
 
 
 def _mapanything(ordered: list[tuple[str, Frame]], cfg: ReconConfig):
