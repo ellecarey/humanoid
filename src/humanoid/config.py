@@ -10,6 +10,7 @@ class FramesConfig(BaseModel):
     max_width: int
     blur_threshold: float
     duplicate_threshold: float
+    min_overlap: float
 
 
 class ReconConfig(BaseModel):

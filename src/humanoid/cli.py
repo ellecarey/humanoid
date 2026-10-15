@@ -10,7 +10,7 @@ from humanoid.change_detection.visibility import apply_visibility
 from humanoid.config import load_config
 from humanoid.pipeline import Pipeline
 from humanoid.preprocessing.extract_frames import extract_frames
-from humanoid.preprocessing.frame_selection import select_frames
+from humanoid.preprocessing.frame_selection import select_scene_frames
 from humanoid.reconstruction.feedforward import reconstruct
 from humanoid.semantics.views import select_views
 from humanoid.semantics.vlm import interpret_regions
@@ -20,12 +20,11 @@ STAGES = ("frames", "recon", "detect", "describe", "report")
 
 
 def _frames(cfg, pipe: Pipeline):
-    selected = {}
+    extracted = {}
     for scene_id, video in cfg.videos.items():
         images = pipe.root / "frames" / scene_id / "images"
-        extracted = extract_frames(video, cfg.frames, images, scene_id)
-        selected[scene_id] = select_frames(extracted, cfg.frames)
-    return selected
+        extracted[scene_id] = extract_frames(video, cfg.frames, images, scene_id)
+    return select_scene_frames(extracted, cfg.frames)
 
 
 def _detect(recon, clouds, cfg):

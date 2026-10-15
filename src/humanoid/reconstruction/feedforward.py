@@ -12,7 +12,7 @@ def reconstruct(
     ordered = [
         (scene_id, frame)
         for scene_id, scene_frames in frames.items()
-        for frame in scene_frames
+        for frame in scene_frames[: cfg.max_frames]
     ]
     if cfg.model.startswith("facebook/VGGT"):
         poses, depths, confidence = _vggt(ordered, cfg)
@@ -53,11 +53,13 @@ def _mapanything(ordered: list[tuple[str, Frame]], cfg: ReconConfig):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = MapAnything.from_pretrained(cfg.model).to(device).eval()
     predictions = model.infer(
-        load_images(
-            [str(frame.path) for _, frame in ordered],
-            resize_mode="longest_side",
-            size=252,
-        )
+        load_images([str(frame.path) for _, frame in ordered]),
+        memory_efficient_inference=True,
+        minibatch_size=1,
+        use_amp=device == "cuda",
+        amp_dtype="bf16",
+        apply_mask=True,
+        mask_edges=True,
     )
     return _from_mapanything(ordered, predictions)
 
