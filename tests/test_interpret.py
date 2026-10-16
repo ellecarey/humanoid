@@ -54,7 +54,7 @@ def test_unset_key_pairs_permuted_extents(monkeypatch):
     assert changes[0].label == "object"
     assert changes[0].region_ids == (1, 2)
     assert changes[0].displacement_m == 1.0
-    assert changes[0].description == "The object was moved 1.00 m, mainly +X."
+    assert changes[0].description == "The object was moved 1.00 m."
 
 
 def test_extents_outside_tolerance_stay_removed_and_added(monkeypatch):

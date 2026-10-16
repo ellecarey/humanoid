@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 from pathlib import Path
 from typing import Literal
 
@@ -8,8 +9,8 @@ import cv2
 import numpy as np
 from pydantic import BaseModel
 
-from humanoid.change_detection.matching import build_changes
-from humanoid.config import VlmConfig
+from humanoid.change_detection.matching import build_changes, flip_direction
+from humanoid.config import LabelerConfig, VlmConfig
 from humanoid.semantics.describe import _template
 from humanoid.semantics.views import best_view
 from humanoid.types import ChangeRegion, DetectedChange, RegionView
@@ -21,6 +22,7 @@ EXTENT_ABS_TOL_M = 0.15
 EXTENT_REL_TOL = 0.3
 MAX_REGIONS = 40
 MAX_IMAGE_SIDE = 768
+RETRY_STATUS = {429, 500, 503}
 _STOPWORDS = {"a", "an", "the", "of", "with", "and", "on", "in", "small", "large"}
 
 _PROMPT = """You are checking candidate changes between two visits to the same room.
@@ -73,11 +75,47 @@ def interpret_regions(
     views: dict[int, list[RegionView]],
     cfg: VlmConfig,
     debug_dir: Path | None = None,
+    labeler: LabelerConfig | None = None,
+    embedder=None,
 ) -> list[DetectedChange]:
+    """Verify, label and pair regions with Gemini, else with the local CLIP labeller.
+
+    Without either, every region is kept as an "object" and pairs come from size.
+    """
+    if os.environ.get("GEMINI_API_KEY"):
+        try:
+            return _with_gemini(regions, views, cfg, debug_dir)
+        except Exception as error:
+            if labeler is None or not labeler.enabled:
+                raise
+            log.warning("Gemini failed (%s); using the local labeller", error)
     changes = build_changes(regions)
-    if not os.environ.get("GEMINI_API_KEY"):
+    if labeler is None or not labeler.enabled:
         return _collapse(changes, _offline_pairs(changes, cfg), {}, {}, set())
 
+    from humanoid.semantics.labeler import verify_changes
+
+    labeler_dir = None if debug_dir is None else debug_dir / "labeler"
+    verdict = verify_changes(changes, views, labeler, embedder, labeler_dir)
+    pairs = _offline_pairs(
+        changes,
+        cfg,
+        exclude=verdict.rejected,
+        by_label=True,
+        embeddings=verdict.embeddings,
+        min_similarity=labeler.pair_min_similarity,
+    )
+    return _collapse(changes, pairs, {}, {}, verdict.rejected)
+
+
+def _with_gemini(
+    regions: list[ChangeRegion],
+    views: dict[int, list[RegionView]],
+    cfg: VlmConfig,
+    debug_dir: Path | None,
+) -> list[DetectedChange]:
+    changes = build_changes(regions)
+    gemini_dir = None if debug_dir is None else debug_dir / "gemini"
     sizes = {region.id: len(region.points) for region in regions}
     order = sorted(
         range(len(changes)),
@@ -85,7 +123,7 @@ def interpret_regions(
         reverse=True,
     )
     asked = sorted(order[:MAX_REGIONS])
-    verdict = _ask_gemini(changes, asked, views, cfg, debug_dir)
+    verdict = _ask_gemini(changes, asked, views, cfg, gemini_dir)
     rejected = set(order[MAX_REGIONS:])
     rejected |= _apply_verdict(changes, verdict)
     texts = {item.index: item.description for item in verdict.regions}
@@ -134,7 +172,14 @@ def _offline_pairs(
     cfg: VlmConfig,
     exclude: set[int] | None = None,
     by_label: bool = False,
+    embeddings: dict[int, np.ndarray] | None = None,
+    min_similarity: float = 0.0,
 ) -> list[tuple[int, int]]:
+    """Pair removed with added changes of the same size, and label and look if known.
+
+    With embeddings, the most similar-looking candidate wins, then the nearest.
+    """
+    embeddings = embeddings or {}
     used: set[int] = set(exclude or ())
     added = [
         j
@@ -153,15 +198,25 @@ def _offline_pairs(
                 continue
             if by_label and not _same_label(change.label, changes[j].label):
                 continue
+            similarity = 0.0
+            if i in embeddings and j in embeddings:
+                similarity = float(embeddings[i] @ embeddings[j])
+                if similarity < min_similarity:
+                    continue
             distance = float(
                 np.linalg.norm(changes[j].to_centroid - change.from_centroid)
             )
             choices.append(
-                (distance, _extent_cost(change.extent, changes[j].extent), j)
+                (
+                    -similarity,
+                    distance,
+                    _extent_cost(change.extent, changes[j].extent),
+                    j,
+                )
             )
         if not choices:
             continue
-        j = min(choices)[2]
+        j = min(choices)[-1]
         used.add(j)
         pairs.append((i, j))
     return pairs
@@ -189,17 +244,8 @@ def _apply_verdict(changes: list[DetectedChange], verdict: Verdict) -> set[int]:
             item.change_type != change.change_type
             and change.attributes.get("cue") == "appearance"
         ):
-            _flip(change)
+            flip_direction(change)
     return rejected
-
-
-def _flip(change: DetectedChange) -> None:
-    if change.change_type == "removed":
-        change.change_type = "added"
-        change.to_centroid, change.from_centroid = change.from_centroid, None
-    else:
-        change.change_type = "removed"
-        change.from_centroid, change.to_centroid = change.to_centroid, None
 
 
 def _ask_gemini(
@@ -210,7 +256,7 @@ def _ask_gemini(
     debug_dir: Path | None,
 ) -> Verdict:
     from google import genai
-    from google.genai import types
+    from google.genai import errors, types
 
     if debug_dir is not None:
         debug_dir.mkdir(parents=True, exist_ok=True)
@@ -246,15 +292,23 @@ def _ask_gemini(
     contents.append("Geometry: " + json.dumps(geometry))
 
     client = genai.Client()
-    response = client.models.generate_content(
-        model=cfg.model,
-        contents=contents,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=Verdict,
-            temperature=0.0,
-        ),
+    request = types.GenerateContentConfig(
+        response_mime_type="application/json",
+        response_schema=Verdict,
+        temperature=0.0,
     )
+    for attempt in range(cfg.retries + 1):
+        try:
+            response = client.models.generate_content(
+                model=cfg.model, contents=contents, config=request
+            )
+            break
+        except errors.APIError as error:
+            if error.code not in RETRY_STATUS or attempt == cfg.retries:
+                raise
+            wait = cfg.retry_wait_s * 2**attempt
+            log.warning("Gemini returned %s; retrying in %.0f s", error.code, wait)
+            time.sleep(wait)
     text = response.text or "{}"
     if debug_dir is not None:
         (debug_dir / "geometry.json").write_text(json.dumps(geometry, indent=2) + "\n")
@@ -287,17 +341,25 @@ def _collapse(
             change_type="moved",
             label=label,
             attributes={"cue": removed.attributes.get("cue", "geometry")},
-            confidence=1.0,
+            confidence=(removed.confidence + added.confidence) / 2,
             region_ids=removed.region_ids + added.region_ids,
             from_centroid=removed.from_centroid,
             to_centroid=added.to_centroid,
             extent=removed.extent,
             displacement_m=displacement,
             description="",
+            heights={
+                key: value
+                for key, value in (
+                    ("from", removed.heights.get("from")),
+                    ("to", added.heights.get("to")),
+                )
+                if value is not None
+            },
         )
         text = pair_texts.get((i, j), "")
         moved.description = (
-            _with_distance(text, displacement) if text else _template(moved, None)
+            _with_distance(text, displacement) if text else _template(moved)
         )
         drop.add(max(i, j))
         moved_at[min(i, j)] = moved
@@ -308,8 +370,9 @@ def _collapse(
             continue
         change = moved_at.get(index, change)
         if change.change_type != "moved":
-            change.description = texts.get(index) or _template(change, None)
+            change.description = texts.get(index) or _template(change)
         kept.append(change)
+    kept.sort(key=lambda change: -change.confidence)
     for number, change in enumerate(kept, start=1):
         change.id = number
     return kept

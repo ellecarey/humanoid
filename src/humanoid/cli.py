@@ -63,7 +63,7 @@ def _detect(recon, clouds, features, cfg, pipe: Pipeline):
 def _describe(regions, frames, recon, cfg, pipe: Pipeline):
     views = select_views(regions, frames, recon, recon.depths)
     changes = interpret_regions(
-        regions, views, cfg.vlm, debug_dir=pipe.root / "debug" / "gemini"
+        regions, views, cfg.vlm, debug_dir=pipe.root / "debug", labeler=cfg.labeler
     )
     return changes, views
 
@@ -126,7 +126,10 @@ def _print_ground_truth(changes, cfg, pipe: Pipeline) -> None:
     rows = check_ground_truth(changes, cfg.ground_truth)
     typer.echo(f"Detected {len(changes)} change(s):")
     for change in changes:
-        typer.echo(f"  {change.id}. {change.change_type}: {change.label}")
+        typer.echo(
+            f"  {change.id}. {change.change_type}: {change.label}"
+            f" ({change.confidence:.2f}) {change.description}"
+        )
     if not rows:
         return
     write_json(pipe.root / "debug" / "ground_truth.json", rows)

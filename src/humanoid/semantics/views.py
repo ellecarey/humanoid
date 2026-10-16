@@ -83,10 +83,12 @@ def _views_for(region, scene_id, lookup, recon, depths) -> list[RegionView]:
         if image is None:
             continue
         frame_pixels = to_frame_pixels(pixels, recon.frame_maps.get(image_name))
-        crop = _boxed_crop(image, frame_pixels)
+        crop, plain, box = _boxed_crop(image, frame_pixels)
         if crop.size == 0:
             continue
-        views.append(RegionView(region.id, image_name, crop, score, scene_id))
+        views.append(
+            RegionView(region.id, image_name, crop, score, scene_id, plain, box)
+        )
     return views
 
 
@@ -123,7 +125,8 @@ def _box(pixels: np.ndarray) -> tuple[float, float, float, float]:
     return float(low[0]), float(low[1]), float(high[0]), float(high[1])
 
 
-def _boxed_crop(image: np.ndarray, pixels: np.ndarray) -> np.ndarray:
+def _boxed_crop(image: np.ndarray, pixels: np.ndarray):
+    """Context crop with the region boxed, the same crop unboxed, and the box."""
     height, width = image.shape[:2]
     x0, y0, x1, y1 = _box(pixels)
     pad_x = max(CONTEXT_PAD * (x1 - x0), (MIN_CROP_PX - (x1 - x0)) / 2, 0.0)
@@ -134,13 +137,14 @@ def _boxed_crop(image: np.ndarray, pixels: np.ndarray) -> np.ndarray:
     bottom = min(height, int(np.ceil(y1 + pad_y)) + 1)
     crop = image[top:bottom, left:right].copy()
     if crop.size == 0:
-        return crop
-    thickness = max(2, round(0.006 * max(crop.shape[:2])))
-    cv2.rectangle(
-        crop,
-        (int(x0) - left, int(y0) - top),
-        (int(np.ceil(x1)) - left, int(np.ceil(y1)) - top),
-        BOX_BGR,
-        thickness,
+        return crop, None, None
+    plain = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+    box = (
+        max(0, int(x0) - left),
+        max(0, int(y0) - top),
+        min(crop.shape[1], int(np.ceil(x1)) - left),
+        min(crop.shape[0], int(np.ceil(y1)) - top),
     )
-    return cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+    thickness = max(2, round(0.006 * max(crop.shape[:2])))
+    cv2.rectangle(crop, box[:2], box[2:], BOX_BGR, thickness)
+    return cv2.cvtColor(crop, cv2.COLOR_BGR2RGB), plain, box

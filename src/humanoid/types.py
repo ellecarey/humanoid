@@ -52,6 +52,9 @@ class ChangeRegion:
     extent: np.ndarray  # (3,) oriented bbox size in metres
     obb_rotation: np.ndarray  # 3x3
     cue: str = "geometry"  # "geometry" or "appearance"
+    score: float = 1.0  # mean vote strength of the member points, 0..1
+    base_m: float | None = None  # lowest part above the floor
+    height_m: float | None = None  # centroid above the floor
 
 
 @dataclass
@@ -86,6 +89,8 @@ class RegionView:
     crop: np.ndarray  # RGB uint8, region boxed
     score: float
     scene_id: str = ""
+    plain: np.ndarray | None = None  # same crop without the box drawn
+    box: tuple[int, int, int, int] | None = None  # x0, y0, x1, y1 inside the crop
 
 
 @dataclass
@@ -108,3 +113,5 @@ class DetectedChange:
     extent: np.ndarray
     displacement_m: float | None
     description: str
+    # "from" / "to" -> (base_m, height_m) above the floor
+    heights: dict[str, tuple[float, float]] = field(default_factory=dict)

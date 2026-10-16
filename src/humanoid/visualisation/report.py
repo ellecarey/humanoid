@@ -54,6 +54,7 @@ def _page(changes, points, views) -> str:
   figure {{ margin: 0; }}
   img {{ max-width: 100%; height: auto; }}
   .empty {{ color: #888; }}
+  .meta {{ color: #666; font-size: 0.85rem; margin: 0; }}
 </style>
 </head>
 <body>
@@ -153,6 +154,7 @@ def _card(change: DetectedChange, views) -> str:
     <figure><figcaption>After (video 2)</figcaption>{_image(after)}</figure>
   </div>
   <p>{escape(change.description)}</p>
+  <p class="meta">Confidence {change.confidence:.2f} · cue: {escape(change.attributes.get("cue", "geometry"))}</p>
 </article>"""
 
 

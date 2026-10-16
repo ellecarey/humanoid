@@ -18,6 +18,7 @@ def cluster_changes(
     count = len(diff.points)
     cue = diff.cue if diff.cue is not None else np.full(count, "geometry")
     residual = diff.residual if diff.residual is not None else np.zeros(count)
+    scores = _point_scores(diff, cue)
     regions: list[ChangeRegion] = []
     residuals: list[float] = []
 
@@ -31,16 +32,36 @@ def cluster_changes(
         ).fit_predict(points)
         point_cue = cue[mask]
         point_residual = residual[mask]
+        point_score = scores[mask]
         for label in sorted(set(labels) - {-1}):
             members = labels == label
             region = _region(len(regions), scene_id, change_type, points[members])
-            if region is None or not _keep(region, floor, cfg):
+            if region is None:
                 continue
+            heights = _heights(region, floor, up)
+            if not _keep(region, heights, cfg):
+                continue
+            if heights is not None:
+                region.base_m, region.height_m = heights
             appearance = np.mean(point_cue[members] == "appearance")
             region.cue = "appearance" if appearance > 0.5 else "geometry"
+            region.score = float(np.mean(point_score[members]))
             regions.append(region)
             residuals.append(_finite_mean(point_residual[members]))
     return _merge_appearance(regions, residuals, cfg.merge_dist_m)
+
+
+def _point_scores(diff: LabeledDiff, cue: np.ndarray) -> np.ndarray:
+    """Vote strength per point: the free-space share, or 1 - cosine for appearance."""
+    count = len(diff.points)
+    if diff.free_views is None or diff.agree_views is None:
+        return np.ones(count)
+    observed = diff.free_views + diff.agree_views
+    scores = diff.free_views / np.maximum(observed, 1)
+    if diff.appearance is not None:
+        appearance = np.clip(1.0 - np.nan_to_num(diff.appearance, nan=1.0), 0.0, 1.0)
+        scores = np.where(cue == "appearance", appearance, scores)
+    return scores.astype(float)
 
 
 def _finite_mean(values: np.ndarray) -> float:
@@ -155,7 +176,25 @@ def _region(
     )
 
 
-def _keep(region: ChangeRegion, floor: np.ndarray | None, cfg: ClusterConfig) -> bool:
+def _heights(
+    region: ChangeRegion, floor: np.ndarray | None, up: np.ndarray | None
+) -> tuple[float, float] | None:
+    """(lowest part, centroid) above the floor, in metres."""
+    if floor is None:
+        return None
+    normal, offset = floor[:3], float(floor[3])
+    scale = float(np.linalg.norm(normal))
+    centre = (float(normal @ region.centroid) + offset) / scale
+    upward = float(normal @ up) if up is not None else centre
+    sign = 1.0 if upward >= 0 else -1.0
+    above = sign * (region.points @ normal + offset) / scale
+    base = max(0.0, float(np.percentile(above, 2)))
+    return base, sign * centre
+
+
+def _keep(
+    region: ChangeRegion, heights: tuple[float, float] | None, cfg: ClusterConfig
+) -> bool:
     longest = float(np.max(region.extent))
     if (
         len(region.points) < cfg.min_points
@@ -163,8 +202,6 @@ def _keep(region: ChangeRegion, floor: np.ndarray | None, cfg: ClusterConfig) ->
         or longest > cfg.max_extent_m
     ):
         return False
-    if floor is None:
+    if heights is None:
         return True
-    normal = floor[:3]
-    height = abs(float(normal @ region.centroid + floor[3])) / np.linalg.norm(normal)
-    return height >= cfg.min_height_above_floor_m
+    return heights[1] >= cfg.min_height_above_floor_m

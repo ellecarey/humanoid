@@ -40,14 +40,15 @@ visibility:
   depth_margin_rel: 0.025      # margin grows with depth: max(abs, rel * z)
   min_free_views: 3
   free_ratio: 0.6              # free / (free + agree) among the other video's views
-  min_agree_views: 3
-  appearance_cos: 0.55         # below this the same surface looks different
+  min_agree_views: 5           # one badly exposed frame cannot flag a surface
+  appearance_cos: 0.4          # below this the same surface looks different
+  center_features: true        # remove each video's mean feature (exposure shift)
   min_confidence: 0.0
 
 cluster:
   dbscan_eps_m: 0.05
   dbscan_min_samples: 10
-  min_points: 40
+  min_points: 150              # a pillow is ~500 points at 1.5 cm voxels
   min_extent_m: 0.05
   max_extent_m: 1.5
   min_height_above_floor_m: 0.05
@@ -60,3 +61,15 @@ vlm:
   cache: true
   pair_abs_tol_m: 0.15
   pair_rel_tol: 0.3
+  retries: 3                   # on 429 / 500 / 503, waiting 10, 20, 40 s
+  retry_wait_s: 10.0
+
+labeler:                       # local CLIP; used without a Gemini key or when Gemini fails
+  enabled: true
+  model: openai/clip-vit-large-patch14
+  box_pads: [0.15, 0.5]        # crop paddings tried; the one CLIP is surest about wins
+  min_objectness: 0.5          # share of CLIP probability on object (not wall/floor/furniture) classes
+  # appearance regions only (geometry regions already have free-space evidence):
+  max_label_ratio: 0.7         # P(label | other video's crop) / P(label | own crop); higher = object still there
+  max_same_similarity: 0.95    # crops this alike in both videos are not a change
+  pair_min_similarity: 0.75    # removed and added halves of a move must look alike

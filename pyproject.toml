@@ -23,6 +23,7 @@ dependencies = [
 [project.optional-dependencies]
 gpu = [
     "torch",
+    "transformers",
     "mapanything @ git+https://github.com/facebookresearch/map-anything.git",
 ]
 vlm = ["google-genai"]

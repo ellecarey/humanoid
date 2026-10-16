@@ -159,6 +159,40 @@ def test_same_depth_with_different_appearance_is_changed():
     assert labeled.appearance[0] < 0.5
 
 
+def test_centering_removes_a_global_shift_between_the_videos():
+    recon, depths = _recon(2.0, 2.0)
+    _with_v1_view(recon, depths)
+    recon.poses["v1/b.jpg"] = _pose("v1", "v1/b.jpg", [0.0, 0.0, 0.0])
+    depths["v1"]["v1/b.jpg"] = depths["v1"]["v1/a.jpg"].copy()
+
+    def grid(centre, background):
+        values = np.tile(np.asarray(background, dtype=np.float16), (8, 8, 1))
+        values[4, 4] = centre
+        return values
+
+    # Every v2 feature is shifted by the same exposure offset; the surface is the same.
+    shift = np.array([0.0, 0.0, 1.0])
+    features = {
+        "v1": {
+            "v1/a.jpg": grid([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            "v1/b.jpg": grid([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        },
+        "v2": {
+            name: grid([1.0, 0.0, 0.0] + shift, [0.0, 1.0, 0.0] + shift)
+            for name in NAMES[:2]
+        },
+    }
+    point = _candidate([0.0, 0.0, 2.0], candidate=False)
+
+    plain = apply_visibility(point, recon, depths, _cfg(appearance_cos=0.8), features)
+    centred = apply_visibility(
+        point, recon, depths, _cfg(appearance_cos=0.8, center_features=True), features
+    )
+
+    assert plain.label.tolist() == ["changed"]
+    assert centred.label.tolist() == ["unchanged"]
+
+
 def test_same_depth_and_appearance_is_unchanged():
     recon, depths = _recon(2.0, 2.0)
     _with_v1_view(recon, depths)

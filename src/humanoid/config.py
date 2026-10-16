@@ -46,6 +46,7 @@ class VisibilityConfig(BaseModel):
     min_agree_views: int = 2
     appearance_cos: float = 0.5
     min_confidence: float = 0.0
+    center_features: bool = False  # subtract each video's mean feature (exposure shift)
 
 
 class ClusterConfig(BaseModel):
@@ -65,6 +66,20 @@ class VlmConfig(BaseModel):
     cache: bool
     pair_abs_tol_m: float = 0.15
     pair_rel_tol: float = 0.3
+    retries: int = 3
+    retry_wait_s: float = 10.0
+
+
+class LabelerConfig(BaseModel):
+    enabled: bool = True
+    model: str = "openai/clip-vit-large-patch14"
+    box_pads: list[float] = [0.15, 0.5]
+    min_objectness: float = 0.5
+    max_label_ratio: float = 0.7
+    max_same_similarity: float = 0.95
+    pair_min_similarity: float = 0.75
+    object_classes: list[str] | None = None
+    background_classes: list[str] | None = None
 
 
 class Config(BaseModel):
@@ -79,6 +94,7 @@ class Config(BaseModel):
     visibility: VisibilityConfig
     cluster: ClusterConfig
     vlm: VlmConfig
+    labeler: LabelerConfig = LabelerConfig()
 
 
 def load_config(path: Path) -> Config:

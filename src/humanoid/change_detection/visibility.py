@@ -26,7 +26,7 @@ def apply_visibility(
     agree = np.zeros(count, dtype=int)
     residual_sum = np.zeros(count)
     residual_n = np.zeros(count, dtype=int)
-    tally = _FeatureTally(count, features)
+    tally = _FeatureTally(count, features, center=cfg.center_features)
 
     for image_name, pose in recon.poses.items():
         depth_map = depths.get(pose.scene_id, {}).get(image_name)
@@ -95,10 +95,23 @@ def apply_visibility(
 
 
 class _FeatureTally:
-    """Running mean feature of each point in its own video and in the other video."""
+    """Running mean feature of each point in its own video and in the other video.
 
-    def __init__(self, count: int, features) -> None:
+    With `center`, each video's mean feature is subtracted first. A global
+    exposure or white-balance difference between the videos shifts every feature
+    the same way, and would otherwise lower the cosine of unchanged surfaces.
+    """
+
+    def __init__(self, count: int, features, center: bool = False) -> None:
         self.features = features or {}
+        self.means = (
+            {
+                scene_id: _mean_feature(by_name)
+                for scene_id, by_name in self.features.items()
+            }
+            if center
+            else {}
+        )
         dim = self._dim()
         self.own = np.zeros((count, dim), dtype=np.float32) if dim else None
         self.other = np.zeros((count, dim), dtype=np.float32) if dim else None
@@ -118,6 +131,9 @@ class _FeatureTally:
         if grid is None:
             return
         sampled = sample_nearest(grid, pixels, shape).astype(np.float32)
+        mean = self.means.get(scene_id)
+        if mean is not None:
+            sampled -= mean
         own = sees_same & ~other
         theirs = sees_same & other
         self.own[index[own]] += sampled[own]
@@ -137,3 +153,12 @@ class _FeatureTally:
         other /= np.maximum(np.linalg.norm(other, axis=1, keepdims=True), 1e-6)
         result[seen] = np.sum(own * other, axis=1)
         return result
+
+
+def _mean_feature(by_name: dict[str, np.ndarray]) -> np.ndarray | None:
+    grids = [
+        grid.reshape(-1, grid.shape[-1]).astype(np.float32) for grid in by_name.values()
+    ]
+    if not grids:
+        return None
+    return np.concatenate(grids).mean(axis=0)

@@ -32,6 +32,33 @@ def test_floor_is_the_lowest_horizontal_plane_not_the_biggest_wall():
     assert abs(plane[3] / np.linalg.norm(plane[:3])) < 0.02
 
 
+def test_regions_carry_height_above_floor_and_vote_score():
+    floor = _grid(np.linspace(-1, 2, 40), np.linspace(-1, 2, 40), [0.0])
+    box = _grid(
+        np.linspace(0.4, 0.6, 6), np.linspace(0.4, 0.6, 6), np.linspace(0.0, 0.5, 13)
+    )
+    points = np.vstack([floor, box])
+    count = len(points)
+    diff = LabeledDiff(
+        points=points,
+        source_scene=np.array(["v1"] * count),
+        nn_distance=np.zeros(count),
+        label=np.array(
+            ["unchanged"] * len(floor) + ["changed"] * len(box), dtype=object
+        ),
+        cue=np.array([""] * len(floor) + ["geometry"] * len(box), dtype=object),
+        free_views=np.r_[np.zeros(len(floor)), np.full(len(box), 3)].astype(int),
+        agree_views=np.r_[np.zeros(len(floor)), np.full(len(box), 1)].astype(int),
+    )
+
+    regions = cluster_changes(diff, _cfg(), up=np.array([0.0, 0.0, 1.0]))
+
+    assert len(regions) == 1
+    assert regions[0].base_m < 0.05
+    assert abs(regions[0].height_m - 0.25) < 0.05
+    assert abs(regions[0].score - 0.75) < 1e-6
+
+
 def test_flat_appearance_change_keeps_only_the_protruding_side():
     floor = _grid(np.linspace(-1, 2, 40), np.linspace(-1, 2, 40), [0.0])
     door = _grid([1.0], np.linspace(0.2, 0.3, 6), np.linspace(0.5, 1.2, 30))

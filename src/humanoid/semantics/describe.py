@@ -1,72 +1,53 @@
 from dataclasses import replace
 
-import numpy as np
-
 from humanoid.types import DetectedChange
 
-NEAR_CENTRE_M = 0.3
+FLOOR_CONTACT_M = 0.1
+LEVEL_CHANGE_M = 0.15
 
 
-def describe_changes(changes: list[DetectedChange], clouds: dict) -> dict:
-    centroid = _scene_centroid(clouds)
-    described = [
-        replace(change, description=_template(change, centroid)) for change in changes
-    ]
+def describe_changes(changes: list[DetectedChange]) -> dict:
+    described = [replace(change, description=_template(change)) for change in changes]
     return {
         "changes": [_record(change) for change in described],
         "markdown": _markdown(described),
     }
 
 
-def _template(change: DetectedChange, centroid: np.ndarray | None) -> str:
+def _template(change: DetectedChange) -> str:
+    label = change.label
     if change.change_type == "removed":
-        return (
-            f"The {change.label} was removed{_place(change.from_centroid, centroid)}."
-        )
+        return f"The {label} was removed{_where(change.heights.get('from'), True)}."
     if change.change_type == "added":
-        return f"{_article(change.label)} {change.label} was added{_place(change.to_centroid, centroid)}."
-    return (
-        f"The {change.label} was moved {change.displacement_m:.2f} m"
-        f"{_axis_phrase(change.from_centroid, change.to_centroid)}."
-    )
+        where = _where(change.heights.get("to"), False)
+        return f"{_article(label)} {label} was added{where}."
+    return f"The {label} was moved {change.displacement_m:.2f} m{_level(change)}."
 
 
 def _article(label: str) -> str:
     return "An" if label[:1].lower() in "aeiou" else "A"
 
 
-def _place(point, centroid) -> str:
-    if point is None or centroid is None:
+def _where(heights: tuple[float, float] | None, removed: bool) -> str:
+    if heights is None:
         return ""
-    delta = np.asarray(point, dtype=float) - np.asarray(centroid, dtype=float)
-    if float(np.linalg.norm(delta)) < NEAR_CENTRE_M:
-        return " near the centre of the room"
-    return f" on the {_side(delta)} side of the room"
+    base, centre = heights
+    if base < FLOOR_CONTACT_M:
+        return " from the floor" if removed else " on the floor"
+    prefix = " from about" if removed else " about"
+    return f"{prefix} {centre:.1f} m above the floor"
 
 
-def _axis_phrase(origin, target) -> str:
-    if origin is None or target is None:
+def _level(change: DetectedChange) -> str:
+    before, after = change.heights.get("from"), change.heights.get("to")
+    if before is None or after is None:
         return ""
-    delta = np.asarray(target, dtype=float) - np.asarray(origin, dtype=float)
-    return f", mainly {_side(delta)}"
-
-
-def _side(delta: np.ndarray) -> str:
-    axis = int(np.argmax(np.abs(delta)))
-    positive = float(delta[axis]) >= 0
-    names = (("+X", "-X"), ("+Y", "-Y"), ("+Z", "-Z"))
-    return names[axis][0 if positive else 1]
-
-
-def _scene_centroid(clouds: dict) -> np.ndarray | None:
-    chunks = []
-    for cloud in clouds.values():
-        points = np.asarray(cloud.points, dtype=float)
-        if points.size:
-            chunks.append(points.reshape(-1, 3))
-    if not chunks:
-        return None
-    return np.mean(np.vstack(chunks), axis=0)
+    rise = after[1] - before[1]
+    if abs(rise) >= LEVEL_CHANGE_M:
+        return f" and now sits {abs(rise):.1f} m {'higher' if rise > 0 else 'lower'}"
+    if before[0] < FLOOR_CONTACT_M and after[0] < FLOOR_CONTACT_M:
+        return " across the floor"
+    return ""
 
 
 def _record(change: DetectedChange) -> dict:
@@ -87,6 +68,11 @@ def _record(change: DetectedChange) -> dict:
         if change.from_centroid is None:
             destination["bbox_extent"] = _xyz(change.extent)
         record["to"] = destination
+    for key in ("from", "to"):
+        if key in record and key in change.heights:
+            record[key]["height_above_floor_m"] = round(
+                float(change.heights[key][1]), 2
+            )
     if change.displacement_m is not None:
         record["displacement_m"] = round(float(change.displacement_m), 2)
     return record
