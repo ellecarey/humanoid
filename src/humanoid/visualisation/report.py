@@ -9,6 +9,7 @@ import open3d as o3d
 import plotly.graph_objects as go
 
 from humanoid.semantics.describe import _record
+from humanoid.semantics.views import best_view
 from humanoid.types import DetectedChange, RegionView
 
 _COLOURS = {
@@ -17,7 +18,8 @@ _COLOURS = {
     "added": ("#43a047", "added"),
     "unknown": ("rgba(255, 235, 59, 0.45)", "unobserved"),
 }
-_MOVED = "#1565c0"
+_BOX = {"removed": "#e53935", "added": "#43a047", "moved": "#1565c0"}
+MAX_POINTS = {"static": 150_000, "unknown": 40_000, "removed": 40_000, "added": 40_000}
 
 
 def write_report(
@@ -36,6 +38,8 @@ def write_report(
 def _page(changes, points, views) -> str:
     figure = _figure(changes, points).to_html(include_plotlyjs=True, full_html=False)
     cards = "\n".join(_card(change, views) for change in changes)
+    if not cards:
+        cards = '<p class="empty">No changes detected.</p>'
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -45,6 +49,7 @@ def _page(changes, points, views) -> str:
   body {{ font-family: sans-serif; margin: 1.5rem; color: #222; }}
   .cards {{ display: grid; gap: 1rem; margin-top: 1.5rem; }}
   .card {{ border: 1px solid #ddd; padding: 0.75rem 1rem; }}
+  .card h3 {{ margin: 0 0 0.5rem; text-transform: capitalize; }}
   .crops {{ display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }}
   figure {{ margin: 0; }}
   img {{ max-width: 100%; height: auto; }}
@@ -67,6 +72,13 @@ def _figure(changes: list[DetectedChange], points: dict[str, np.ndarray]) -> go.
         cloud = _xyz(points.get(key))
         if len(cloud) == 0:
             continue
+        colours = points.get(f"{key}_colors")
+        cloud, colours = _thin(cloud, colours, MAX_POINTS[key])
+        marker = {"size": 2, "color": colour}
+        if colours is not None:
+            marker["color"] = [
+                f"rgb({r},{g},{b})" for r, g, b in (colours * 255).astype(int)
+            ]
         fig.add_trace(
             go.Scatter3d(
                 x=cloud[:, 0],
@@ -74,24 +86,26 @@ def _figure(changes: list[DetectedChange], points: dict[str, np.ndarray]) -> go.
                 z=cloud[:, 2],
                 mode="markers",
                 name=name,
-                marker={"size": 2, "color": colour},
+                marker=marker,
             )
         )
-    segments = []
-    for change in changes:
-        if change.change_type != "moved":
+    for change_type, colour in _BOX.items():
+        segments = []
+        for change in changes:
+            if change.change_type != change_type:
+                continue
+            for centre in (change.from_centroid, change.to_centroid):
+                if centre is not None:
+                    segments.extend(_box_edges(centre, change.extent))
+            if change.from_centroid is not None and change.to_centroid is not None:
+                segments.append(
+                    (
+                        np.asarray(change.from_centroid, dtype=float),
+                        np.asarray(change.to_centroid, dtype=float),
+                    )
+                )
+        if not segments:
             continue
-        if change.from_centroid is None or change.to_centroid is None:
-            continue
-        segments.extend(_box_edges(change.from_centroid, change.extent))
-        segments.extend(_box_edges(change.to_centroid, change.extent))
-        segments.append(
-            (
-                np.asarray(change.from_centroid, dtype=float),
-                np.asarray(change.to_centroid, dtype=float),
-            )
-        )
-    if segments:
         xs, ys, zs = _broken_line(segments)
         fig.add_trace(
             go.Scatter3d(
@@ -99,12 +113,13 @@ def _figure(changes: list[DetectedChange], points: dict[str, np.ndarray]) -> go.
                 y=ys,
                 z=zs,
                 mode="lines",
-                name="moved",
-                line={"color": _MOVED, "width": 4},
+                name=f"{change_type} box",
+                line={"color": colour, "width": 5},
             )
         )
     fig.update_layout(
         title="Scene changes",
+        height=720,
         margin={"l": 0, "r": 0, "t": 40, "b": 0},
         legend={"orientation": "h"},
         scene={
@@ -117,12 +132,25 @@ def _figure(changes: list[DetectedChange], points: dict[str, np.ndarray]) -> go.
     return fig
 
 
+def _thin(cloud: np.ndarray, colours, limit: int):
+    if colours is not None:
+        colours = np.asarray(colours, dtype=float).reshape(-1, 3)
+        if len(colours) != len(cloud):
+            colours = None
+    if len(cloud) <= limit:
+        return cloud, colours
+    pick = np.random.default_rng(0).choice(len(cloud), limit, replace=False)
+    return cloud[pick], None if colours is None else colours[pick]
+
+
 def _card(change: DetectedChange, views) -> str:
     before, after = _before_after(change, views)
+    title = f"{change.id}. {change.change_type}: {change.label}"
     return f"""<article class="card">
+  <h3>{escape(title)}</h3>
   <div class="crops">
-    <figure><figcaption>Before</figcaption>{_image(before)}</figure>
-    <figure><figcaption>After</figcaption>{_image(after)}</figure>
+    <figure><figcaption>Before (video 1)</figcaption>{_image(before)}</figure>
+    <figure><figcaption>After (video 2)</figcaption>{_image(after)}</figure>
   </div>
   <p>{escape(change.description)}</p>
 </article>"""
@@ -130,20 +158,18 @@ def _card(change: DetectedChange, views) -> str:
 
 def _before_after(change: DetectedChange, views):
     ids = change.region_ids
-    if change.change_type == "removed":
-        return _crop(views, ids[0] if ids else None), None
-    if change.change_type == "added":
-        return None, _crop(views, ids[0] if ids else None)
-    before = _crop(views, ids[0]) if len(ids) > 0 else None
-    after = _crop(views, ids[1]) if len(ids) > 1 else None
-    return before, after
-
-
-def _crop(views, region_id: int | None) -> np.ndarray | None:
-    if views is None or region_id is None:
-        return None
-    crops = views.get(region_id) or []
-    return crops[0].crop if crops else None
+    if not ids:
+        return None, None
+    before = best_view(views, ids[0], "v1")
+    after = best_view(views, ids[-1], "v2")
+    if before is not None and before.scene_id == "" and change.change_type == "added":
+        before = None
+    if after is not None and after.scene_id == "" and change.change_type == "removed":
+        after = None
+    return (
+        before.crop if before is not None else None,
+        after.crop if after is not None else None,
+    )
 
 
 def _image(crop: np.ndarray | None) -> str:
@@ -214,7 +240,11 @@ def _write_ply(path: Path, points: dict[str, np.ndarray]) -> None:
         if len(cloud) == 0:
             continue
         chunks.append(cloud)
-        colours.append(np.tile(colour, (len(cloud), 1)))
+        real = points.get(f"{key}_colors")
+        if key == "static" and real is not None and len(real) == len(cloud):
+            colours.append(np.asarray(real, dtype=float))
+        else:
+            colours.append(np.tile(colour, (len(cloud), 1)))
     if not chunks:
         return
     cloud = o3d.geometry.PointCloud()

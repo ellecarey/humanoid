@@ -2,19 +2,22 @@
   {
     "id": 1,
     "type": "removed",
-    "label": "gold elephant",
-    "centroids": { "v1": null, "v2": null }
+    "label": "flag pillow",
+    "keywords": ["pillow", "cushion", "flag", "union", "jack"],
+    "where": "on the sofa"
   },
   {
     "id": 2,
-    "type": "added",
-    "label": "rat",
-    "centroids": { "v1": null, "v2": null }
+    "type": "moved",
+    "label": "desk chair",
+    "keywords": ["chair"],
+    "where": "from beside the desk into the middle of the room"
   },
   {
     "id": 3,
-    "type": "moved",
-    "label": "bin",
-    "centroids": { "v1": null, "v2": null }
+    "type": "added",
+    "label": "umbrella",
+    "keywords": ["umbrella"],
+    "where": "hanging on the door"
   }
 ]
