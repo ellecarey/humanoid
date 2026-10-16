@@ -57,6 +57,7 @@ def extract_frames(
                         index=index,
                         width=width,
                         height=height,
+                        time_s=index / fps,
                     )
                 )
             index += 1

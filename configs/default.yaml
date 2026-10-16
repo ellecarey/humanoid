@@ -3,39 +3,60 @@ videos:
   v1: data/raw_videos/scene_v1.MOV
   v2: data/raw_videos/scene_v2.MOV
 output_root: outputs
+ground_truth: data/ground_truth/changes.json
 
 frames:
-  target_fps: 4.0          # 30 fps video -> keep every 7th or 8th frame
-  max_frames: 12            # overlapping burst; 4+4 views fit one T4 reconstruction
+  target_fps: 6.0              # candidates extracted per second
+  window_s: 0.5                # keep the sharpest candidate per window (~2 fps over the whole walk)
+  max_per_video: 100           # both videos go through one MapAnything pass
   max_width: 1280
-  blur_threshold: 80.0     # Laplacian variance; raise if too many frames survive
-  duplicate_threshold: 0.98
-  min_overlap: 0.90        # consecutive views in a burst must still see the same place
+  duplicate_threshold: 0.98    # thumbnail correlation above which a frame repeats the last one
+  min_relative_sharpness: 0.25 # windows far blurrier than the video median may be dropped...
+  max_gap_s: 1.0               # ...unless that leaves about 1 s or more without a frame
 
 recon:
   model: facebook/map-anything
-  max_frames: 12
   voxel_size: 0.015
+  conf_percentile: 15          # MapAnything drops the least confident pixels
   min_confidence: 0.0
-  scale_m_per_unit: 1.0   # VGGT fallback only; MapAnything is already metric
+  scale_m_per_unit: 1.0        # VGGT fallback only; MapAnything is already metric
+  icp: true
+  icp_voxels_m: [0.05, 0.02, 0.01]
+  min_self_views: 2            # a point must be re-observed in its own video
+  self_margin_m: 0.04
+  self_margin_rel: 0.025
+
+features:
+  enabled: true
+  model: dinov2_vits14
+  scale: 2.0                   # 518x294 input -> 74x42 patch grid
+  pca_dim: 64
+
+diff:
+  change_distance_m: 0.05
+
+visibility:
+  depth_margin_m: 0.04
+  depth_margin_rel: 0.025      # margin grows with depth: max(abs, rel * z)
+  min_free_views: 3
+  free_ratio: 0.6              # free / (free + agree) among the other video's views
+  min_agree_views: 3
+  appearance_cos: 0.55         # below this the same surface looks different
+  min_confidence: 0.0
+
+cluster:
+  dbscan_eps_m: 0.05
+  dbscan_min_samples: 10
+  min_points: 40
+  min_extent_m: 0.05
+  max_extent_m: 1.5
+  min_height_above_floor_m: 0.05
+  merge_dist_m: 0.25
+  floor_max_tilt_deg: 20.0
 
 vlm:
   provider: gemini
   model: gemini-2.5-flash
   cache: true
-
-diff:
-  change_distance_m: 0.03
-
-visibility:
-  depth_margin_m: 0.05
-  min_confirming_views: 2
-  min_confidence: 1.5
-
-cluster:
-  dbscan_eps_m: 0.05
-  dbscan_min_samples: 15
-  min_points: 40
-  min_extent_m: 0.03
-  max_extent_m: 1.5
-  min_height_above_floor_m: 0.05
+  pair_abs_tol_m: 0.15
+  pair_rel_tol: 0.3
