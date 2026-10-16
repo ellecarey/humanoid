@@ -6,7 +6,7 @@ output_root: outputs
 
 frames:
   target_fps: 4.0          # 30 fps video -> keep every 7th or 8th frame
-  max_frames: 4            # overlapping burst; 4+4 views fit one T4 reconstruction
+  max_frames: 12            # overlapping burst; 4+4 views fit one T4 reconstruction
   max_width: 1280
   blur_threshold: 80.0     # Laplacian variance; raise if too many frames survive
   duplicate_threshold: 0.98
@@ -14,7 +14,7 @@ frames:
 
 recon:
   model: facebook/map-anything
-  max_frames: 4
+  max_frames: 12
   voxel_size: 0.015
   min_confidence: 0.0
   scale_m_per_unit: 1.0   # VGGT fallback only; MapAnything is already metric

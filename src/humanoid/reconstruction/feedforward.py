@@ -52,15 +52,7 @@ def _mapanything(ordered: list[tuple[str, Frame]], cfg: ReconConfig):
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = MapAnything.from_pretrained(cfg.model).to(device).eval()
-    predictions = model.infer(
-        load_images([str(frame.path) for _, frame in ordered]),
-        memory_efficient_inference=True,
-        minibatch_size=1,
-        use_amp=device == "cuda",
-        amp_dtype="bf16",
-        apply_mask=True,
-        mask_edges=True,
-    )
+    predictions = model.infer(load_images([str(frame.path) for _, frame in ordered]))
     return _from_mapanything(ordered, predictions)
 
 
