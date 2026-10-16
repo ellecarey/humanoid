@@ -2,7 +2,9 @@ import numpy as np
 
 from humanoid.config import VisibilityConfig
 from humanoid.types import GeometricDiff, LabeledDiff, SceneRecon
-from humanoid.utils.geometry import project
+from humanoid.utils.geometry import depth_margin, project, sample_nearest
+
+RESIDUAL_CLIP_M = 0.5
 
 
 def apply_visibility(
@@ -10,50 +12,128 @@ def apply_visibility(
     recon: SceneRecon,
     depths: dict[str, dict[str, np.ndarray]],
     cfg: VisibilityConfig,
+    features: dict[str, dict[str, np.ndarray]] | None = None,
 ) -> LabeledDiff:
-    confirms = np.zeros(len(diff.points), dtype=int)
+    """Vote each point against every view of the other video.
+
+    free: the other video sees past the point, so the surface is gone there.
+    agree: the other video sees a surface at the point's depth.
+    The appearance path compares feature vectors of agreeing views, which finds
+    changes that sit almost flush with the surface behind them.
+    """
+    count = len(diff.points)
+    free = np.zeros(count, dtype=int)
+    agree = np.zeros(count, dtype=int)
+    residual_sum = np.zeros(count)
+    residual_n = np.zeros(count, dtype=int)
+    tally = _FeatureTally(count, features)
 
     for image_name, pose in recon.poses.items():
         depth_map = depths.get(pose.scene_id, {}).get(image_name)
-        if depth_map is None or len(diff.points) == 0:
+        if depth_map is None or count == 0:
             continue
-
-        pixels, z, keep = project(diff.points, pose.R, pose.t, pose.K)
-        point_index = np.flatnonzero(keep)
+        pixels, z, keep = project(diff.points, pose.R, pose.t, pose.K, depth_map.shape)
+        index = np.flatnonzero(keep)
+        if len(index) == 0:
+            continue
+        observed = sample_nearest(depth_map, pixels).astype(float)
+        valid = np.isfinite(observed) & (observed > 0)
         confidence_map = recon.confidence.get(pose.scene_id, {}).get(image_name)
-        free = _sees_through(
-            pixels, z, depth_map, cfg.depth_margin_m, confidence_map, cfg.min_confidence
+        if confidence_map is not None and cfg.min_confidence > 0:
+            valid &= sample_nearest(confidence_map, pixels) >= cfg.min_confidence
+        margin = depth_margin(z, cfg.depth_margin_m, cfg.depth_margin_rel)
+        sees_free = valid & (observed > z + margin)
+        sees_same = valid & (np.abs(observed - z) <= margin)
+        other = diff.source_scene[index] != pose.scene_id
+
+        free[index[other & sees_free]] += 1
+        agree[index[other & sees_same]] += 1
+        informative = other & (sees_free | sees_same)
+        residual_sum[index[informative]] += np.clip(
+            observed[informative] - z[informative], -RESIDUAL_CLIP_M, RESIDUAL_CLIP_M
+        )
+        residual_n[index[informative]] += 1
+        tally.add(
+            pose.scene_id, image_name, pixels, depth_map.shape, index, sees_same, other
         )
 
-        for local_index, index in enumerate(point_index):
-            if not free[local_index] or not diff.candidate[index]:
-                continue
-            if diff.source_scene[index] == pose.scene_id:
-                continue
-            confirms[index] += 1
+    cosine = tally.cosine()
+    observed_views = free + agree
+    geometric = (
+        diff.candidate
+        & (free >= cfg.min_free_views)
+        & (free >= cfg.free_ratio * np.maximum(observed_views, 1))
+    )
+    looks_different = (
+        np.isfinite(cosine)
+        & (agree >= cfg.min_agree_views)
+        & (cosine < cfg.appearance_cos)
+        & ~geometric
+    )
+    surface_kept = (agree >= cfg.min_agree_views) & (agree > free)
 
-    label = np.where(diff.candidate, "unknown", "unchanged").astype(object)
-    label[diff.candidate & (confirms >= cfg.min_confirming_views)] = "changed"
+    label = np.full(count, "unknown", dtype=object)
+    label[~diff.candidate | surface_kept] = "unchanged"
+    label[geometric | looks_different] = "changed"
+    cue = np.full(count, "", dtype=object)
+    cue[geometric] = "geometry"
+    cue[looks_different] = "appearance"
+    with np.errstate(invalid="ignore", divide="ignore"):
+        residual = np.where(residual_n > 0, residual_sum / residual_n, np.nan)
     return LabeledDiff(
         points=diff.points,
         source_scene=diff.source_scene,
         nn_distance=diff.nn_distance,
         label=label,
+        colors=diff.colors,
+        cue=cue,
+        free_views=free,
+        agree_views=agree,
+        residual=residual,
+        appearance=cosine,
     )
 
 
-def _sees_through(
-    pixels, z, depth_map, margin: float, confidence_map, min_confidence: float
-) -> np.ndarray:
-    height, width = depth_map.shape
-    u = np.rint(pixels[:, 0]).astype(int)
-    v = np.rint(pixels[:, 1]).astype(int)
-    inside = (u >= 0) & (u < width) & (v >= 0) & (v < height)
-    z_map = np.full(len(pixels), np.nan)
-    z_map[inside] = depth_map[v[inside], u[inside]]
-    sees = np.isfinite(z_map) & (z_map > z + margin)
-    if confidence_map is None:
-        return sees
-    conf = np.zeros(len(pixels), dtype=float)
-    conf[inside] = confidence_map[v[inside], u[inside]]
-    return sees & (conf >= min_confidence)
+class _FeatureTally:
+    """Running mean feature of each point in its own video and in the other video."""
+
+    def __init__(self, count: int, features) -> None:
+        self.features = features or {}
+        dim = self._dim()
+        self.own = np.zeros((count, dim), dtype=np.float32) if dim else None
+        self.other = np.zeros((count, dim), dtype=np.float32) if dim else None
+        self.own_n = np.zeros(count, dtype=int)
+        self.other_n = np.zeros(count, dtype=int)
+
+    def _dim(self) -> int:
+        for by_name in self.features.values():
+            for grid in by_name.values():
+                return int(grid.shape[-1])
+        return 0
+
+    def add(self, scene_id, image_name, pixels, shape, index, sees_same, other):
+        if self.own is None:
+            return
+        grid = self.features.get(scene_id, {}).get(image_name)
+        if grid is None:
+            return
+        sampled = sample_nearest(grid, pixels, shape).astype(np.float32)
+        own = sees_same & ~other
+        theirs = sees_same & other
+        self.own[index[own]] += sampled[own]
+        self.own_n[index[own]] += 1
+        self.other[index[theirs]] += sampled[theirs]
+        self.other_n[index[theirs]] += 1
+
+    def cosine(self) -> np.ndarray:
+        count = len(self.own_n)
+        if self.own is None:
+            return np.full(count, np.nan)
+        result = np.full(count, np.nan)
+        seen = (self.own_n > 0) & (self.other_n > 0)
+        own = self.own[seen]
+        other = self.other[seen]
+        own /= np.maximum(np.linalg.norm(own, axis=1, keepdims=True), 1e-6)
+        other /= np.maximum(np.linalg.norm(other, axis=1, keepdims=True), 1e-6)
+        result[seen] = np.sum(own * other, axis=1)
+        return result

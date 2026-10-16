@@ -19,7 +19,7 @@ def _single(region: ChangeRegion) -> DetectedChange:
         id=0,
         change_type=region.change_type,
         label="object",
-        attributes={},
+        attributes={"cue": region.cue},
         confidence=1.0,
         region_ids=(region.id,),
         from_centroid=centroid if removed else None,
