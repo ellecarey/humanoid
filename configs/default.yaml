@@ -56,7 +56,7 @@ cluster:
 
 vlm:
   provider: gemini
-  model: gemini-2.5-flash
+  model: gemini-3.8-flash
   cache: true
   pair_abs_tol_m: 0.15
   pair_rel_tol: 0.3

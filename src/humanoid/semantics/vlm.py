@@ -245,7 +245,8 @@ def _ask_gemini(
                 (debug_dir / f"region_{index:02d}_{when.lower()}.jpg").write_bytes(data)
     contents.append("Geometry: " + json.dumps(geometry))
 
-    response = genai.Client().models.generate_content(
+    client = genai.Client()
+    response = client.models.generate_content(
         model=cfg.model,
         contents=contents,
         config=types.GenerateContentConfig(
